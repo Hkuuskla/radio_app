@@ -1,40 +1,56 @@
 package ee.itcollege.hkuusk.intentdemo2019f
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.android.volley.Request
+import com.android.volley.Response
+import com.android.volley.toolbox.StringRequest
 import kotlinx.android.synthetic.main.activity_main.*
+import org.json.JSONObject
+
 
 class MainActivity : AppCompatActivity() {
     private val localReceiver = BroadcastReceiverInMainActivity()
     private val localReceiverIntentFilter: IntentFilter = IntentFilter()
-
     private var playerStatus = C.PLAYER_STATUS_STOPPED
 
-
-    companion object{
+    companion object {
         private val TAG = MainActivity::class.java.simpleName
+        private const val URL = "http://dad.akaver.com/api/SongTitles/ROCKFM"
     }
-
-    //private var editTextName : EditText? = null
-    //private var textViewGreeting : TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        //editTextName = findViewById(R.id.editTextName)
-        //textViewGreeting = findViewById(R.id.textViewGreeting)
+
         localReceiverIntentFilter.addAction(C.INTENT_SERVICE_TIME)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_STOPPED)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_BUFFERING)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_PLAYING)
 
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
+                    Manifest.permission.CALL_PHONE
+                ) == PackageManager.PERMISSION_DENIED
+            ) {
+                val permissions = arrayOf<String>(
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.CALL_PHONE
+                )
+                // requestcode - this will be sent back,
+                // when user reacts to permission request
+                requestPermissions(permissions, 999)
+            }
+        }
     }
 
     override fun onResume() {
@@ -46,44 +62,83 @@ class MainActivity : AppCompatActivity() {
             .registerReceiver(localReceiver, localReceiverIntentFilter)
     }
 
-    fun buttonPlayStopOnClick (view: View) {
+    override fun onPause() {
+        super.onPause()
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(localReceiver)
+    }
+
+    fun buttonPlayStopOnClick(view: View) {
+        Log.d(TAG, "buttonPlayStopClicked")
+
+        val handler = WebApiSingletonServiceHandler.getInstance(this)
+        val httpRequest = StringRequest(
+            Request.Method.GET,
+            URL,
+            Response.Listener<String> { response ->
+                Log.d(TAG, response)
+                val jsonObjectStationInfo = JSONObject(response)
+                val channel = jsonObjectStationInfo.getString("StationName")
+                val jsonArraySongHistoryList = jsonObjectStationInfo.getJSONArray("SongHistoryList")
+                val jsonSongInfo = jsonArraySongHistoryList.getJSONObject(0)
+
+                val artist = jsonSongInfo.getString("Artist")
+                val title = jsonSongInfo.getString("Title")
+
+                textViewArtist.text = artist
+                textViewTitle.text = title
+                textViewChannel.text = channel
+            },
+            Response.ErrorListener { }
+        )
+
+        handler.addToRequestQueue(httpRequest)
+
         when (playerStatus) {
             C.PLAYER_STATUS_STOPPED -> {
-                startService(Intent(this, TestService::class.java))
+                startService(Intent(this, MusicService::class.java))
             }
             C.PLAYER_STATUS_BUFFERING -> {
 
             }
             C.PLAYER_STATUS_PLAYING -> {
-                // saata mainactivityst teenusesse broadcast, tuleb teha broadcast listener panna teenuses käima ja teistpidi kirjutada asja väljasaatmine
-                //kõik mis mainactivitis filtrit ...
+                LocalBroadcastManager
+                    .getInstance(applicationContext)
+                    .sendBroadcast(Intent(C.INTENT_UI_STOP))
+                LocalBroadcastManager
+                    .getInstance(applicationContext)
+                    .sendBroadcast(Intent(C.INTENT_PHONE_STATE))
             }
         }
-
     }
 
-    fun updateUi(){
+    fun updateUi() {
         when (playerStatus) {
             C.PLAYER_STATUS_STOPPED -> {
-                buttonPlayStop.setText("PLAY")
+                imageButtonPlayPause.setImageResource(R.drawable.ic_play_arrow_black_24dp)
             }
             C.PLAYER_STATUS_BUFFERING -> {
-                buttonPlayStop.setText("BUFFERING")
+                imageButtonPlayPause.setImageResource(R.drawable.ic_autorenew_black_24dp)
             }
             C.PLAYER_STATUS_PLAYING -> {
-                buttonPlayStop.setText("STOP")
+                imageButtonPlayPause.setImageResource(R.drawable.ic_pause_black_24dp)
             }
         }
     }
+
     // dont forget "inner" to access parent class instance from inner class
-    private inner class BroadcastReceiverInMainActivity: BroadcastReceiver() {
+    private inner class BroadcastReceiverInMainActivity : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             Log.d(TAG, "BroadcastReceiverInMainActivity " + intent?.action)
 
-            when (intent?.action){
-                null -> {}
-                C.INTENT_SERVICE_TIME ->
-                    textViewTitle.text = intent.getStringExtra("time")
+            when (intent?.action) {
+                null -> {
+                }
+                C.INTENT_SERVICE_TIME -> {
+                    textViewTitle.text = intent.getStringExtra("textViewTitle")
+                    textViewChannel.text = intent.getStringExtra("textViewChannel")
+                    textViewArtist.text = intent.getStringExtra("textViewArtist")
+                }
+
                 C.INTENT_PLAYER_STOPPED -> {
                     playerStatus = C.PLAYER_STATUS_STOPPED
                 }
@@ -97,4 +152,6 @@ class MainActivity : AppCompatActivity() {
             updateUi()
         }
     }
+
+
 }
