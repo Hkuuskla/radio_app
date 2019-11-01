@@ -6,10 +6,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
 import android.view.View
+import androidx.appcompat.app.AppCompatActivity
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.android.volley.Request
 import com.android.volley.Response
@@ -32,10 +32,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        localReceiverIntentFilter.addAction(C.INTENT_SERVICE_TIME)
+        localReceiverIntentFilter.addAction(C.INTENT_SERVICE_DATA)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_STOPPED)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_BUFFERING)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_PLAYING)
+        localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_IDLE)
+
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_DENIED || checkSelfPermission(
@@ -65,6 +67,12 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         LocalBroadcastManager.getInstance(this).unregisterReceiver(localReceiver)
+
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopService(Intent(this, MusicService::class.java))
     }
 
     fun buttonPlayStopOnClick(view: View) {
@@ -104,9 +112,6 @@ class MainActivity : AppCompatActivity() {
                 LocalBroadcastManager
                     .getInstance(applicationContext)
                     .sendBroadcast(Intent(C.INTENT_UI_STOP))
-                LocalBroadcastManager
-                    .getInstance(applicationContext)
-                    .sendBroadcast(Intent(C.INTENT_PHONE_STATE))
             }
         }
     }
@@ -133,7 +138,7 @@ class MainActivity : AppCompatActivity() {
             when (intent?.action) {
                 null -> {
                 }
-                C.INTENT_SERVICE_TIME -> {
+                C.INTENT_SERVICE_DATA -> {
                     textViewTitle.text = intent.getStringExtra("textViewTitle")
                     textViewChannel.text = intent.getStringExtra("textViewChannel")
                     textViewArtist.text = intent.getStringExtra("textViewArtist")

@@ -8,7 +8,6 @@ import android.content.IntentFilter
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.os.IBinder
-import android.provider.MediaStore
 import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.android.volley.Request
@@ -23,7 +22,6 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
     MediaPlayer.OnPreparedListener {
 
     companion object {
-        val mediaPlayer = MediaPlayer()
         private val TAG = MusicService::class.java.simpleName
     }
 
@@ -33,6 +31,8 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         Executors.newScheduledThreadPool(1)
 
     private val URL = "http://dad.akaver.com/api/SongTitles/ROCKFM"
+    private val isPausedInCall = false;
+    val mediaPlayer = MediaPlayer()
 
 
     override fun onCreate() {
@@ -46,7 +46,10 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC)
 
         localReceiverIntentFilter.addAction(C.INTENT_UI_STOP)
-        localReceiverIntentFilter.addAction(C.INTENT_PHONE_STATE)
+        localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_RINGING)
+        localReceiverIntentFilter.addAction(C.INTENT_PHONE_CALL_RECEIVED)
+        localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_IDLE)
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -69,17 +72,14 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         return START_STICKY
     }
 
+
     override fun onBind(intent: Intent): IBinder {
         Log.d(TAG, "onBind")
         TODO("Return the communication channel to the service.")
     }
 
-    fun stopMediaPlayer(intent: Intent) {
-        mediaPlayer.stop()
-    }
 
-
-    override fun onPrepared(mp: MediaPlayer?) {
+    override fun onPrepared(player: MediaPlayer) {
         Log.d(TAG, "onPrepared")
         mediaPlayer.start()
         LocalBroadcastManager
@@ -87,23 +87,62 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
             .sendBroadcast(Intent(C.INTENT_PLAYER_PLAYING))
     }
 
+
     override fun onError(mp: MediaPlayer?, what: Int, extra: Int): Boolean {
         Log.d(TAG, "onError")
         return false
     }
 
-    override fun onCompletion(mp: MediaPlayer?) {
+    override fun onDestroy() {
+        super.onDestroy()
+        mediaPlayer.stop()
+    }
+
+
+    override fun onCompletion(player: MediaPlayer) {
         Log.d(TAG, "onCompletion")
+        mediaPlayer.start()
+        LocalBroadcastManager
+            .getInstance(applicationContext)
+            .sendBroadcast(Intent(C.INTENT_PLAYER_PLAYING))
     }
 
     private inner class BroadcastReceiverInService : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
                 C.INTENT_UI_STOP -> {
-                    mediaPlayer.stop()
+                    if (mediaPlayer.isPlaying) {
+                        mediaPlayer.pause()
+                    }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
                         .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+                }
+                C.INTENT_PHONE_IS_RINGING -> {
+                    if (mediaPlayer.isPlaying) {
+                        mediaPlayer.pause()
+                    }
+                    LocalBroadcastManager
+                        .getInstance(applicationContext)
+                        .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+                }
+                C.INTENT_PHONE_CALL_RECEIVED -> {
+                    if (mediaPlayer.isPlaying) {
+                        mediaPlayer.pause()
+                    }
+                    LocalBroadcastManager
+                        .getInstance(applicationContext)
+                        .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+                }
+                C.INTENT_PHONE_IS_IDLE -> {
+                    if (!mediaPlayer.isPlaying) {
+                        mediaPlayer.start()
+                    }
+                    LocalBroadcastManager
+                        .getInstance(applicationContext)
+                        .sendBroadcast(Intent(C.INTENT_PLAYER_PLAYING))
+
+
                 }
             }
         }
@@ -130,7 +169,7 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
                             val artist = jsonSongInfo.getString("Artist")
                             val title = jsonSongInfo.getString("Title")
 
-                            val intent = Intent(C.INTENT_SERVICE_TIME)
+                            val intent = Intent(C.INTENT_SERVICE_DATA)
                             intent.putExtra("textViewTitle", title)
                             intent.putExtra("textViewArtist", artist)
                             intent.putExtra("textViewChannel", channel)
