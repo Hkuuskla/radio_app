@@ -2,7 +2,7 @@ package ee.itcollege.hkuusk.intentdemo2019f
 
 class C {
     companion object {
-        const val INTENT_SERVICE_DATA = "ee.itcollege.testservice.data"
+        const val INTENT_SERVICE_DATA = "ee.itcollege.dataservice.data"
 
         const val PLAYER_STATUS_STOPPED = 0;
         const val PLAYER_STATUS_BUFFERING = 1;

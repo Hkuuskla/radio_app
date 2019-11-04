@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        localReceiverIntentFilter.addAction(C.INTENT_SERVICE_DATA)
+
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_STOPPED)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_BUFFERING)
         localReceiverIntentFilter.addAction(C.INTENT_PLAYER_PLAYING)
@@ -78,40 +78,49 @@ class MainActivity : AppCompatActivity() {
     fun buttonPlayStopOnClick(view: View) {
         Log.d(TAG, "buttonPlayStopClicked")
 
-        val handler = WebApiSingletonServiceHandler.getInstance(this)
-        val httpRequest = StringRequest(
-            Request.Method.GET,
-            URL,
-            Response.Listener<String> { response ->
-                Log.d(TAG, response)
-                val jsonObjectStationInfo = JSONObject(response)
-                val channel = jsonObjectStationInfo.getString("StationName")
-                val jsonArraySongHistoryList = jsonObjectStationInfo.getJSONArray("SongHistoryList")
-                val jsonSongInfo = jsonArraySongHistoryList.getJSONObject(0)
 
-                val artist = jsonSongInfo.getString("Artist")
-                val title = jsonSongInfo.getString("Title")
 
-                textViewArtist.text = artist
-                textViewTitle.text = title
-                textViewChannel.text = channel
-            },
-            Response.ErrorListener { }
-        )
-
-        handler.addToRequestQueue(httpRequest)
 
         when (playerStatus) {
             C.PLAYER_STATUS_STOPPED -> {
                 startService(Intent(this, MusicService::class.java))
+                /*
+                var handler = WebApiSingletonServiceHandler.getInstance(this)
+
+
+                var httpRequest = StringRequest(
+                    Request.Method.GET,
+                    URL,
+                    Response.Listener<String> { response ->
+                        Log.d(TAG, response)
+                        val jsonObjectStationInfo = JSONObject(response)
+                        val channel = jsonObjectStationInfo.getString("StationName")
+                        val jsonArraySongHistoryList = jsonObjectStationInfo.getJSONArray("SongHistoryList")
+                        val jsonSongInfo = jsonArraySongHistoryList.getJSONObject(0)
+                        val artist = jsonSongInfo.getString("Artist")
+                        val title = jsonSongInfo.getString("Title")
+
+                        textViewArtist.text = artist
+                        textViewTitle.text = title
+                        textViewChannel.text = channel
+
+                    },
+                    Response.ErrorListener { }
+                );
+
+                handler.addToRequestQueue(httpRequest)*/
+
+
             }
             C.PLAYER_STATUS_BUFFERING -> {
 
             }
             C.PLAYER_STATUS_PLAYING -> {
+                Log.i("brodcast", "service starter onclick")
                 LocalBroadcastManager
                     .getInstance(applicationContext)
                     .sendBroadcast(Intent(C.INTENT_UI_STOP))
+
             }
         }
     }
@@ -120,12 +129,15 @@ class MainActivity : AppCompatActivity() {
         when (playerStatus) {
             C.PLAYER_STATUS_STOPPED -> {
                 imageButtonPlayPause.setImageResource(R.drawable.ic_play_arrow_black_24dp)
+
             }
             C.PLAYER_STATUS_BUFFERING -> {
                 imageButtonPlayPause.setImageResource(R.drawable.ic_autorenew_black_24dp)
             }
             C.PLAYER_STATUS_PLAYING -> {
+                Log.i("brodcast", "service starter ui")
                 imageButtonPlayPause.setImageResource(R.drawable.ic_pause_black_24dp)
+
             }
         }
     }
@@ -139,19 +151,28 @@ class MainActivity : AppCompatActivity() {
                 null -> {
                 }
                 C.INTENT_SERVICE_DATA -> {
+                    Log.i("brodcast", "service data")
                     textViewTitle.text = intent.getStringExtra("textViewTitle")
                     textViewChannel.text = intent.getStringExtra("textViewChannel")
                     textViewArtist.text = intent.getStringExtra("textViewArtist")
                 }
 
                 C.INTENT_PLAYER_STOPPED -> {
+                    Log.i("brodcast", "service stopped")
                     playerStatus = C.PLAYER_STATUS_STOPPED
+
                 }
                 C.INTENT_PLAYER_BUFFERING -> {
                     playerStatus = C.PLAYER_STATUS_BUFFERING
                 }
                 C.INTENT_PLAYER_PLAYING -> {
+                    Log.i("brodcast", "service starter")
                     playerStatus = C.PLAYER_STATUS_PLAYING
+                    LocalBroadcastManager
+                        .getInstance(applicationContext)
+                        .sendBroadcast(Intent(C.INTENT_SERVICE_DATA))
+
+
                 }
             }
             updateUi()

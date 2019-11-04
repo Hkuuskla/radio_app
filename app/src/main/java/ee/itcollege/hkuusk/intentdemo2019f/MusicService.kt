@@ -29,9 +29,9 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
     private val localReceiverIntentFilter: IntentFilter = IntentFilter()
     private val scheduledExecutorService: ScheduledExecutorService? =
         Executors.newScheduledThreadPool(1)
+    private var isRadioRunning = false
 
     private val URL = "http://dad.akaver.com/api/SongTitles/ROCKFM"
-    private val isPausedInCall = false;
     val mediaPlayer = MediaPlayer()
 
 
@@ -49,7 +49,7 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_RINGING)
         localReceiverIntentFilter.addAction(C.INTENT_PHONE_CALL_RECEIVED)
         localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_IDLE)
-
+        localReceiverIntentFilter.addAction(C.INTENT_SERVICE_DATA)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -59,12 +59,15 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         mediaPlayer.setDataSource("http://sky.babahhcdn.com/rck")
         mediaPlayer.prepareAsync()
 
+
         LocalBroadcastManager
             .getInstance(applicationContext)
             .sendBroadcast(Intent(C.INTENT_PLAYER_BUFFERING))
 
-
         startTimerService()
+        LocalBroadcastManager
+            .getInstance(applicationContext)
+            .sendBroadcast(Intent(C.INTENT_SERVICE_DATA))
         LocalBroadcastManager
             .getInstance(this)
             .registerReceiver(localReceiver, localReceiverIntentFilter)
@@ -82,6 +85,7 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
     override fun onPrepared(player: MediaPlayer) {
         Log.d(TAG, "onPrepared")
         mediaPlayer.start()
+        startTimerService()
         LocalBroadcastManager
             .getInstance(applicationContext)
             .sendBroadcast(Intent(C.INTENT_PLAYER_PLAYING))
@@ -96,6 +100,8 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
     override fun onDestroy() {
         super.onDestroy()
         mediaPlayer.stop()
+        stopDataService()
+
     }
 
 
@@ -113,30 +119,42 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
                 C.INTENT_UI_STOP -> {
                     if (mediaPlayer.isPlaying) {
                         mediaPlayer.pause()
+                        stopDataService()
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
                         .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+                    LocalBroadcastManager
+                        .getInstance(applicationContext)
+                        .sendBroadcast(Intent(C.INTENT_SERVICE_DATA))
+
                 }
                 C.INTENT_PHONE_IS_RINGING -> {
                     if (mediaPlayer.isPlaying) {
                         mediaPlayer.pause()
+                        stopDataService()
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
                         .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+
                 }
                 C.INTENT_PHONE_CALL_RECEIVED -> {
                     if (mediaPlayer.isPlaying) {
                         mediaPlayer.pause()
+                        stopDataService()
+
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
                         .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
+
                 }
                 C.INTENT_PHONE_IS_IDLE -> {
                     if (!mediaPlayer.isPlaying) {
                         mediaPlayer.start()
+                        startTimerService()
+
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
@@ -150,44 +168,77 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
 
     private fun startTimerService() {
 
+
+         fun getInfo(){
+             lateinit var channel:String
+             lateinit var artist:String
+             lateinit var title:String
+
+             var handler = WebApiSingletonServiceHandler.getInstance(this)
+             var httpRequest = StringRequest(
+                 Request.Method.GET,
+                 URL,
+                 Response.Listener<String> { response ->
+                     Log.d(TAG, response)
+                     val jsonObjectStationInfo = JSONObject(response)
+                     channel = jsonObjectStationInfo.getString("StationName")
+                     val jsonArraySongHistoryList =
+                         jsonObjectStationInfo.getJSONArray("SongHistoryList")
+                     val jsonSongInfo = jsonArraySongHistoryList.getJSONObject(0)
+
+                     artist = jsonSongInfo.getString("Artist")
+                     title = jsonSongInfo.getString("Title")
+
+                     var intent = Intent(C.INTENT_SERVICE_DATA)
+                     intent.putExtra("textViewTitle", title)
+                     intent.putExtra("textViewArtist", artist)
+                     intent.putExtra("textViewChannel", channel)
+                     LocalBroadcastManager
+                         .getInstance(applicationContext)
+                         .sendBroadcast(intent)
+
+                 },
+                 Response.ErrorListener { }
+             );
+             var intent = Intent(C.INTENT_SERVICE_DATA)
+             intent.putExtra("textViewTitle", title)
+             intent.putExtra("textViewArtist", artist)
+             intent.putExtra("textViewChannel", channel)
+             LocalBroadcastManager
+                 .getInstance(applicationContext)
+                 .sendBroadcast(intent)
+             handler.addToRequestQueue(httpRequest)
+
+
+         }
+
+        isRadioRunning = true
         scheduledExecutorService?.scheduleAtFixedRate(
             Runnable {
                 run {
-                    Log.d(TAG, "startTimerService")
-                    var handler = WebApiSingletonServiceHandler.getInstance(this)
-                    var httpRequest = StringRequest(
-                        Request.Method.GET,
-                        URL,
-                        Response.Listener<String> { response ->
-                            Log.d(TAG, response)
-                            val jsonObjectStationInfo = JSONObject(response)
-                            val channel = jsonObjectStationInfo.getString("StationName")
-                            val jsonArraySongHistoryList =
-                                jsonObjectStationInfo.getJSONArray("SongHistoryList")
-                            val jsonSongInfo = jsonArraySongHistoryList.getJSONObject(0)
-
-                            val artist = jsonSongInfo.getString("Artist")
-                            val title = jsonSongInfo.getString("Title")
-
-                            val intent = Intent(C.INTENT_SERVICE_DATA)
-                            intent.putExtra("textViewTitle", title)
-                            intent.putExtra("textViewArtist", artist)
-                            intent.putExtra("textViewChannel", channel)
-
-                            LocalBroadcastManager
-                                .getInstance(applicationContext)
-                                .sendBroadcast(intent)
-
-                        },
-                        Response.ErrorListener { }
-                    )
-                    handler.addToRequestQueue(httpRequest)
+                    if(isRadioRunning) {
+                        Log.d(TAG, "startTimerService")
+                        getInfo()
+                    }
                 }
             },
             0,
             15,
             TimeUnit.SECONDS
         )
+    }
+
+    fun stopDataService() {
+        Log.i("DataService", "stopCall")
+        isRadioRunning = false
+        val intent = Intent(C.INTENT_SERVICE_DATA)
+        intent.putExtra("textViewTitle", "")
+        intent.putExtra("textViewArtist", "")
+        intent.putExtra("textViewChannel", "")
+
+        LocalBroadcastManager
+            .getInstance(applicationContext)
+            .sendBroadcast(intent)
     }
 
 }
