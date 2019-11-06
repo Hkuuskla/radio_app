@@ -31,6 +31,7 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         Executors.newScheduledThreadPool(1)
     private var isRadioRunning = false
 
+
     private val URL = "http://dad.akaver.com/api/SongTitles/ROCKFM"
     val mediaPlayer = MediaPlayer()
 
@@ -46,10 +47,10 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
         mediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC)
 
         localReceiverIntentFilter.addAction(C.INTENT_UI_STOP)
+        localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_IDLE)
         localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_RINGING)
         localReceiverIntentFilter.addAction(C.INTENT_PHONE_CALL_RECEIVED)
-        localReceiverIntentFilter.addAction(C.INTENT_PHONE_IS_IDLE)
-        localReceiverIntentFilter.addAction(C.INTENT_SERVICE_DATA)
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -65,9 +66,7 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
             .sendBroadcast(Intent(C.INTENT_PLAYER_BUFFERING))
 
         startTimerService()
-        LocalBroadcastManager
-            .getInstance(applicationContext)
-            .sendBroadcast(Intent(C.INTENT_SERVICE_DATA))
+
         LocalBroadcastManager
             .getInstance(this)
             .registerReceiver(localReceiver, localReceiverIntentFilter)
@@ -107,10 +106,6 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
 
     override fun onCompletion(player: MediaPlayer) {
         Log.d(TAG, "onCompletion")
-        mediaPlayer.start()
-        LocalBroadcastManager
-            .getInstance(applicationContext)
-            .sendBroadcast(Intent(C.INTENT_PLAYER_PLAYING))
     }
 
     private inner class BroadcastReceiverInService : BroadcastReceiver() {
@@ -118,21 +113,20 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
             when (intent?.action) {
                 C.INTENT_UI_STOP -> {
                     if (mediaPlayer.isPlaying) {
-                        mediaPlayer.pause()
                         stopDataService()
+                        mediaPlayer.pause()
+
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
                         .sendBroadcast(Intent(C.INTENT_PLAYER_STOPPED))
-                    LocalBroadcastManager
-                        .getInstance(applicationContext)
-                        .sendBroadcast(Intent(C.INTENT_SERVICE_DATA))
 
                 }
                 C.INTENT_PHONE_IS_RINGING -> {
                     if (mediaPlayer.isPlaying) {
-                        mediaPlayer.pause()
                         stopDataService()
+                        mediaPlayer.pause()
+
                     }
                     LocalBroadcastManager
                         .getInstance(applicationContext)
@@ -141,8 +135,8 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
                 }
                 C.INTENT_PHONE_CALL_RECEIVED -> {
                     if (mediaPlayer.isPlaying) {
-                        mediaPlayer.pause()
                         stopDataService()
+                        mediaPlayer.pause()
 
                     }
                     LocalBroadcastManager
@@ -200,13 +194,6 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
                  },
                  Response.ErrorListener { }
              );
-             var intent = Intent(C.INTENT_SERVICE_DATA)
-             intent.putExtra("textViewTitle", title)
-             intent.putExtra("textViewArtist", artist)
-             intent.putExtra("textViewChannel", channel)
-             LocalBroadcastManager
-                 .getInstance(applicationContext)
-                 .sendBroadcast(intent)
              handler.addToRequestQueue(httpRequest)
 
 
@@ -229,16 +216,9 @@ class MusicService : Service(), MediaPlayer.OnCompletionListener, MediaPlayer.On
     }
 
     fun stopDataService() {
-        Log.i("DataService", "stopCall")
+        Log.d(TAG,"stopCall")
         isRadioRunning = false
-        val intent = Intent(C.INTENT_SERVICE_DATA)
-        intent.putExtra("textViewTitle", "")
-        intent.putExtra("textViewArtist", "")
-        intent.putExtra("textViewChannel", "")
 
-        LocalBroadcastManager
-            .getInstance(applicationContext)
-            .sendBroadcast(intent)
     }
 
 }
